@@ -34,11 +34,22 @@ ITEMS = {
 }
 sudden_death_mode = False
 
+# Load sounds
+click_sound = pygame.mixer.Sound('sounds/click.wav')
+shotgun_sound = pygame.mixer.Sound('sounds/shotgun.wav')
+win_sound = pygame.mixer.Sound('sounds/win.wav')
+lose_sound = pygame.mixer.Sound('sounds/lose.wav')
+item_sound = pygame.mixer.Sound('sounds/item.wav')
+
 def draw_text(text, font, color, surface, x, y):
     textobj = font.render(text, True, color)
     textrect = textobj.get_rect()
     textrect.center = (x, y)
     surface.blit(textobj, textrect)
+
+def draw_button(text, color, surface, x, y, w, h):
+    pygame.draw.rect(surface, color, pygame.Rect(x, y, w, h))
+    draw_text(text, SMALL_FONT, BLACK, surface, x + w // 2, y + h // 2)
 
 def draw_game():
     WINDOW.fill(BLACK)
@@ -59,6 +70,7 @@ def draw_game():
         draw_text("Dealer's Turn", SMALL_FONT, RED, WINDOW, WINDOW_WIDTH // 2, WINDOW_HEIGHT - 50)
 
     draw_items()
+    draw_ui_buttons()
 
 def draw_items():
     x, y = 50, WINDOW_HEIGHT - 100
@@ -66,6 +78,17 @@ def draw_items():
         if active:
             draw_text(item.replace('_', ' ').title(), SMALL_FONT, BLUE, WINDOW, x, y)
             x += 150
+
+def draw_ui_buttons():
+    button_width, button_height = 120, 50
+    # Use items
+    draw_button("Use Item", GREEN, WINDOW, 50, WINDOW_HEIGHT - 50, button_width, button_height)
+    # Increase wager
+    draw_button("Increase Wager", BLUE, WINDOW, 200, WINDOW_HEIGHT - 50, button_width, button_height)
+    # Reset Game
+    draw_button("Reset Game", RED, WINDOW, 350, WINDOW_HEIGHT - 50, button_width, button_height)
+    # Next Round
+    draw_button("Next Round", WHITE, WINDOW, 500, WINDOW_HEIGHT - 50, button_width, button_height)
 
 def initialize_shells():
     shells = [True] * live_shells + [False] * (NUM_SHELLS - live_shells)
@@ -91,12 +114,14 @@ def handle_wager():
 
 def handle_turn():
     global player_lives, dealer_lives, player_turn, game_over, shells, ITEMS, sudden_death_mode
+    pygame.mixer.Sound.play(shotgun_sound)
     if player_turn:
         if ITEMS["magnifying_glass"]:
             print("Magnifying Glass: Checking shell...")
         if shells[0]:
             dealer_lives -= wager
             if dealer_lives <= 0:
+                pygame.mixer.Sound.play(win_sound)
                 print("Player wins!")
                 game_over = True
         else:
@@ -112,12 +137,14 @@ def handle_turn():
             if shells[0]:
                 player_lives -= 2 * wager
                 if player_lives <= 0:
+                    pygame.mixer.Sound.play(lose_sound)
                     print("Dealer wins!")
                     game_over = True
         else:
             if shells[0]:
                 player_lives -= wager
                 if player_lives <= 0:
+                    pygame.mixer.Sound.play(lose_sound)
                     print("Dealer wins!")
                     game_over = True
             else:
@@ -141,9 +168,11 @@ def handle_sudden_death():
         sudden_death_mode = True
         print("Sudden Death Mode Activated!")
         if player_lives <= 2:
+            pygame.mixer.Sound.play(lose_sound)
             game_over = True
             print("Player loses in Sudden Death!")
         if dealer_lives <= 2:
+            pygame.mixer.Sound.play(lose_sound)
             game_over = True
             print("Dealer loses in Sudden Death!")
 
@@ -157,22 +186,36 @@ def main():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE and not game_over:
-                    print(f"{'Player' if player_turn else 'Dealer'} pulls the trigger.")
-                    handle_turn()
-                if event.key == pygame.K_r:
-                    print("Resetting game.")
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                mouse_x, mouse_y = event.pos
+                if 50 <= mouse_x <= 170 and WINDOW_HEIGHT - 50 <= mouse_y <= WINDOW_HEIGHT - 0:
+                    pygame.mixer.Sound.play(item_sound)
+                    print("Using Item...")
+                    if any(ITEMS.values()):
+                        for item, active in ITEMS.items():
+                            if active:
+                                ITEMS[item] = False
+                                print(f"Used {item.replace('_', ' ').title()}")
+                                break
+                elif 200 <= mouse_x <= 320 and WINDOW_HEIGHT - 50 <= mouse_y <= WINDOW_HEIGHT - 0:
+                    pygame.mixer.Sound.play(click_sound)
+                    print("Increasing Wager...")
+                    handle_wager()
+                elif 350 <= mouse_x <= 470 and WINDOW_HEIGHT - 50 <= mouse_y <= WINDOW_HEIGHT - 0:
+                    pygame.mixer.Sound.play(click_sound)
+                    print("Resetting Game...")
                     reset_game()
                     distribute_items()
-                if event.key == pygame.K_n:
-                    print("Next Round!")
+                elif 500 <= mouse_x <= 620 and WINDOW_HEIGHT - 50 <= mouse_y <= WINDOW_HEIGHT - 0:
+                    pygame.mixer.Sound.play(click_sound)
+                    print("Next Round...")
                     round_number += 1
                     if round_number == 3:
                         handle_sudden_death()
                     if round_number <= 3:
                         distribute_items()
                     else:
+                        pygame.mixer.Sound.play(lose_sound)
                         print("Game Over!")
                         game_over = True
 
