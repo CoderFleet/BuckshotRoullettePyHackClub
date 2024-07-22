@@ -14,6 +14,7 @@ RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 BLUE = (0, 0, 255)
 YELLOW = (255, 255, 0)
+PURPLE = (128, 0, 128)
 
 FONT = pygame.font.SysFont(None, 55)
 SMALL_FONT = pygame.font.SysFont(None, 35)
@@ -35,22 +36,24 @@ ITEMS = {
 }
 sudden_death_mode = False
 reset_confirmation = False
+difficulty = 'medium'
 
-# Load sounds
 click_sound = pygame.mixer.Sound('sounds/click.wav')
 shotgun_sound = pygame.mixer.Sound('sounds/shotgun.wav')
 win_sound = pygame.mixer.Sound('sounds/win.wav')
 lose_sound = pygame.mixer.Sound('sounds/lose.wav')
 item_sound = pygame.mixer.Sound('sounds/item.wav')
 reset_sound = pygame.mixer.Sound('sounds/reset.wav')
-animation_sound = pygame.mixer.Sound('sounds/animation.wav')
 
-# Animation settings
 item_animation_timer = 0
 shell_animation_timer = 0
 animation_duration = 1000
 item_animation_active = False
 shell_animation_active = False
+
+player_wins = 0
+dealer_wins = 0
+total_rounds = 0
 
 def draw_text(text, font, color, surface, x, y):
     textobj = font.render(text, True, color)
@@ -58,8 +61,11 @@ def draw_text(text, font, color, surface, x, y):
     textrect.center = (x, y)
     surface.blit(textobj, textrect)
 
-def draw_button(text, color, surface, x, y, w, h):
-    pygame.draw.rect(surface, color, pygame.Rect(x, y, w, h))
+def draw_button(text, color, surface, x, y, w, h, highlight=False):
+    button_color = color
+    if highlight:
+        button_color = tuple(min(c + 50, 255) for c in color)
+    pygame.draw.rect(surface, button_color, pygame.Rect(x, y, w, h))
     draw_text(text, SMALL_FONT, BLACK, surface, x + w // 2, y + h // 2)
 
 def draw_game():
@@ -70,11 +76,14 @@ def draw_game():
     draw_text(f"Wager: {wager}", FONT, WHITE, WINDOW, WINDOW_WIDTH // 2, 200)
     draw_text(f"Round: {round_number}", FONT, WHITE, WINDOW, WINDOW_WIDTH // 2, 250)
 
+    if sudden_death_mode:
+        draw_text("Sudden Death Mode!", FONT, RED, WINDOW, WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 - 100)
+
     pygame.draw.rect(WINDOW, GREEN, pygame.Rect(WINDOW_WIDTH // 2 - 70, WINDOW_HEIGHT // 2 - 70, 140, 140), 2)
     pygame.draw.circle(WINDOW, WHITE, (WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2), 70, 2)
 
     if game_over:
-        draw_text("Game Over!", FONT, RED, WINDOW, WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2)
+        draw_final_screen()
     elif player_turn:
         draw_text("Player's Turn", SMALL_FONT, GREEN, WINDOW, WINDOW_WIDTH // 2, WINDOW_HEIGHT - 50)
     else:
@@ -82,6 +91,7 @@ def draw_game():
 
     draw_items()
     draw_ui_buttons()
+    draw_statistics()
 
     if reset_confirmation:
         pygame.draw.rect(WINDOW, WHITE, pygame.Rect(200, WINDOW_HEIGHT // 2, 400, 200))
@@ -113,13 +123,27 @@ def draw_ui_buttons():
     draw_button("Reset Game", RED, WINDOW, 350, WINDOW_HEIGHT - 50, button_width, button_height)
     draw_button("Next Round", WHITE, WINDOW, 500, WINDOW_HEIGHT - 50, button_width, button_height)
 
+def draw_statistics():
+    stats_x, stats_y = 50, 50
+    draw_text(f"Rounds Played: {total_rounds}", SMALL_FONT, WHITE, WINDOW, stats_x, stats_y)
+    draw_text(f"Player Wins: {player_wins}", SMALL_FONT, WHITE, WINDOW, stats_x, stats_y + 50)
+    draw_text(f"Dealer Wins: {dealer_wins}", SMALL_FONT, WHITE, WINDOW, stats_x, stats_y + 100)
+    draw_text(f"Difficulty: {difficulty.capitalize()}", SMALL_FONT, WHITE, WINDOW, stats_x, stats_y + 150)
+
+def draw_final_screen():
+    final_message = "Player Wins!" if player_wins > dealer_wins else "Dealer Wins!"
+    draw_text(final_message, FONT, WHITE, WINDOW, WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 - 50)
+    draw_button("Restart", GREEN, WINDOW, 250, WINDOW_HEIGHT // 2 + 50, 100, 50)
+    draw_button("Quit", RED, WINDOW, 450, WINDOW_HEIGHT // 2 + 50, 100, 50)
+
 def initialize_shells():
+    global live_shells
     shells = [True] * live_shells + [False] * (NUM_SHELLS - live_shells)
     random.shuffle(shells)
     return shells
 
 def reset_game():
-    global shells, player_lives, dealer_lives, player_turn, wager, live_shells, game_over, round_number, ITEMS, sudden_death_mode, reset_confirmation
+    global shells, player_lives, dealer_lives, player_turn, wager, live_shells, game_over, round_number, ITEMS, sudden_death_mode, reset_confirmation, difficulty
     shells = initialize_shells()
     player_lives = 2
     dealer_lives = 2
@@ -131,6 +155,11 @@ def reset_game():
     ITEMS = {key: False for key in ITEMS}
     sudden_death_mode = False
     reset_confirmation = False
+    difficulty = 'medium'
+    global player_wins, dealer_wins, total_rounds
+    player_wins = 0
+    dealer_wins = 0
+    total_rounds = 0
 
 def handle_wager():
     global wager
@@ -147,6 +176,7 @@ def handle_turn():
             if dealer_lives <= 0:
                 pygame.mixer.Sound.play(win_sound)
                 print("Player wins!")
+                player_wins += 1
                 game_over = True
         else:
             print("Blank! No effect.")
@@ -163,6 +193,7 @@ def handle_turn():
                 if player_lives <= 0:
                     pygame.mixer.Sound.play(lose_sound)
                     print("Dealer wins!")
+                    dealer_wins += 1
                     game_over = True
         else:
             if shells[0]:
@@ -170,6 +201,7 @@ def handle_turn():
                 if player_lives <= 0:
                     pygame.mixer.Sound.play(lose_sound)
                     print("Dealer wins!")
+                    dealer_wins += 1
                     game_over = True
             else:
                 print("Blank! No effect.")
@@ -187,7 +219,7 @@ def distribute_items():
     ITEMS = {item: True for item in items_to_distribute}
 
 def handle_sudden_death():
-    global game_over, player_lives, dealer_lives, sudden_death_mode
+    global game_over, player_lives, dealer_lives
     if player_lives <= 2 or dealer_lives <= 2:
         sudden_death_mode = True
         print("Sudden Death Mode Activated!")
@@ -201,38 +233,32 @@ def handle_sudden_death():
             print("Dealer loses in Sudden Death!")
 
 def dealer_decision():
-    global player_lives, dealer_lives, player_turn, game_over, shells, ITEMS
-    if dealer_lives > 0 and player_lives > 0:
-        if ITEMS["handcuffs"]:
-            print("Handcuffs: Dealer takes an extra turn!")
-            player_turn = False
-            return
-        handle_turn()
-        if not game_over:
-            player_turn = True
-    else:
-        game_over = True
-        if dealer_lives <= 0:
-            pygame.mixer.Sound.play(win_sound)
-            print("Player wins!")
-        else:
-            pygame.mixer.Sound.play(lose_sound)
-            print("Dealer wins!")
+    global player_lives, dealer_lives, player_turn, game_over, shells, ITEMS, sudden_death_mode
+    pygame.mixer.Sound.play(shotgun_sound)
+    if ITEMS["cigarette_pack"]:
+        print("Cigarette Pack: Dealer takes an extra turn!")
+        player_turn = False
+        return
+    if ITEMS["handcuffs"]:
+        print("Handcuffs: Dealer takes an extra turn!")
+        player_turn = False
+        return
+    handle_turn()
+    if not game_over:
+        player_turn = True
 
 def animate_item_usage():
     global item_animation_timer, item_animation_active
-    pygame.mixer.Sound.play(animation_sound)
     item_animation_timer = pygame.time.get_ticks()
     item_animation_active = True
 
-def animate_shells():
+def animate_shell_usage():
     global shell_animation_timer, shell_animation_active
-    pygame.mixer.Sound.play(animation_sound)
     shell_animation_timer = pygame.time.get_ticks()
     shell_animation_active = True
 
 def main():
-    global player_lives, dealer_lives, player_turn, wager, game_over, round_number, sudden_death_mode, reset_confirmation
+    global player_lives, dealer_lives, player_turn, wager, game_over, round_number, sudden_death_mode, reset_confirmation, difficulty
     reset_game()
     distribute_items()
 
@@ -276,6 +302,7 @@ def main():
                         pygame.mixer.Sound.play(click_sound)
                         print("Next Round...")
                         round_number += 1
+                        total_rounds += 1
                         if round_number == 3:
                             handle_sudden_death()
                         if round_number <= 3:
@@ -284,6 +311,7 @@ def main():
                             pygame.mixer.Sound.play(lose_sound)
                             print("Game Over!")
                             game_over = True
+
         if not game_over:
             if player_turn:
                 print("Player's decision required...")
